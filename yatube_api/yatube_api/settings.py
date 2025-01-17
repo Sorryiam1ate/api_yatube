@@ -1,5 +1,3 @@
-"""Django settings for yatube project."""
-
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -27,7 +25,6 @@ INSTALLED_APPS = [
     'api',
     'rest_framework.authtoken',
     'posts.apps.PostsConfig',
-
 ]
 
 MIDDLEWARE = [

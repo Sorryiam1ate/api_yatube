@@ -1,84 +1,61 @@
-from rest_framework import generics, viewsets
-from rest_framework.exceptions import MethodNotAllowed, PermissionDenied
-from rest_framework.permissions import IsAuthenticated
-
+from api.serializers import (
+    CommentsSerializer,
+    GroupsSerializer,
+    PostSerializer
+)
+from django.shortcuts import get_object_or_404
 from posts.models import Comment, Group, Post
-
-from .serializers import CommentsSerializer, GroupsSerializer, PostSerializer
+from rest_framework import viewsets
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.permissions import IsAuthenticated
 
 
 class PostsViewSet(viewsets.ModelViewSet):
     queryset = Post.objects.all()
     serializer_class = PostSerializer
-    permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
 
-    def destroy(self, request, *args, **kwargs):
-        post = self.get_object()
-        if post.author != request.user:
+    def perform_destroy(self, instance):
+        if instance.author != self.request.user:
             raise PermissionDenied("Вы можете удалять только свои посты.")
-        return super().destroy(request, *args, **kwargs)
+        instance.delete()
 
-    def update(self, request, *args, **kwargs):
+    def perform_update(self, serializer):
         post = self.get_object()
-        if post.author != request.user:
-            raise PermissionDenied("Вы можете обновить только свои посты.")
-        return super().update(request, *args, **kwargs)
+        if post.author != self.request.user:
+            raise PermissionDenied("Вы можете обновлять только свои посты.")
+        serializer.save()
 
 
-class CommentsList(generics.ListCreateAPIView):
+class CommentsViewSet(viewsets.ModelViewSet):
     serializer_class = CommentsSerializer
     permission_classes = [IsAuthenticated]
-
-    def perform_create(self, serializer):
-        post_id = self.kwargs.get('post_id')
-        post = Post.objects.get(id=post_id)
-        serializer.save(author=self.request.user, post=post)
 
     def get_queryset(self):
         post_id = self.kwargs.get('post_id')
         return Comment.objects.filter(post_id=post_id)
 
+    def perform_create(self, serializer):
+        post_id = self.kwargs.get('post_id')
+        post = get_object_or_404(Post, id=post_id)
+        serializer.save(author=self.request.user, post=post)
 
-class CommentsDetail(generics.RetrieveUpdateDestroyAPIView):
-    serializer_class = CommentsSerializer
-    permission_classes = [IsAuthenticated]
-
-    def destroy(self, request, *args, **kwargs):
+    def perform_update(self, serializer):
         comment = self.get_object()
-        if comment.author != request.user:
+        if comment.author != self.request.user:
+            raise PermissionDenied(
+                "Вы можете обновлять только свои комментарии.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if instance.author != self.request.user:
             raise PermissionDenied(
                 "Вы можете удалять только свои комментарии.")
-        return super().destroy(request, *args, **kwargs)
-
-    def patch(self, request, *args, **kwargs):
-        comment = self.get_object()
-        if comment.author != request.user:
-            raise PermissionDenied(
-                "Вы можете редактировать только свои комментарии.")
-
-        return super().patch(request, *args, **kwargs)
-
-    def put(self, request, *args, **kwargs):
-        comment = self.get_object()
-        if comment.author != request.user:
-            raise PermissionDenied(
-                "Вы можете редактировать только свои комментарии.")
-
-        return super().put(request, *args, **kwargs)
-
-    def get_queryset(self):
-        post_id = self.kwargs['post_id']
-        comment_id = self.kwargs['pk']
-        return Comment.objects.filter(post_id=post_id, id=comment_id)
+        instance.delete()
 
 
-class GroupsViewSet(viewsets.ModelViewSet):
+class GroupsViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Group.objects.all()
     serializer_class = GroupsSerializer
-
-    def create(self, request, *args, **kwargs):
-        raise MethodNotAllowed(
-            "POST", detail="Создание постов через API запрещено.")
